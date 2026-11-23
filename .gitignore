@@ -1,0 +1,47 @@
+# Assembler and linker output
+*.obj
+*.OBJ
+*.exe
+*.EXE
+*.com
+*.COM
+*.map
+*.MAP
+*.lst
+*.LST
+*.crf
+*.CRF
+*.err
+*.ERR
+*.bin
+*.BIN
+
+# EMU8086 working files
+*.symbol
+*.debug
+*.binf
+
+# Eclipse Vault runtime data (password hash)
+*.dat
+*.DAT
+
+# DOSBox local files
+dosbox*.conf
+capture/
+*.log
+*.LOG
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Editor and OS files
+.vscode/
+.idea/
+*.swp
+*.bak
+*.BAK
+Thumbs.db
+Desktop.ini
+.DS_Store
