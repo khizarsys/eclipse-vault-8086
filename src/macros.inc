@@ -4,6 +4,7 @@
 
 ; ----- DOS services (INT 21h, value goes in AH) -------------------------------
 DOS_READ_KEY     EQU 08h            ; Read one key without echo
+DOS_CREATE_FILE  EQU 3Ch            ; Create or truncate a file
 DOS_OPEN_FILE    EQU 3Dh            ; Open an existing file
 DOS_CLOSE_FILE   EQU 3Eh            ; Close a file handle
 DOS_READ_FILE    EQU 3Fh            ; Read from a file handle
@@ -25,8 +26,23 @@ COLOR_SUCCESS    EQU 0Ah            ; Light green
 COLOR_ERROR      EQU 0Ch            ; Light red
 
 ; ----- ASCII codes ------------------------------------------------------------
+ASCII_BS         EQU 08h
 ASCII_LF         EQU 0Ah
 ASCII_CR         EQU 0Dh
+ASCII_SPACE      EQU 20h
+ASCII_TILDE      EQU 7Eh
+
+; ----- Password rules ---------------------------------------------------------
+MIN_PASSWORD     EQU 4              ; Shortest accepted password
+MAX_PASSWORD     EQU 16             ; Longest accepted password
+MAX_ATTEMPTS     EQU 3              ; Wrong tries before lockout
+HASH_SEED        EQU 1505h          ; Starting value for the password hash
+HASH_MULTIPLIER  EQU 33             ; Multiplier for the password hash
+VAULT_REC_SIZE   EQU 4              ; Magic (2 bytes) + hash (2 bytes)
+
+; ----- Program exit codes -----------------------------------------------------
+EXIT_OK          EQU 0
+EXIT_LOCKOUT     EQU 1
 
 ; -----------------------------------------------------------------------------
 ; PRINT_COLOR - Print a zero-terminated string in the given color
