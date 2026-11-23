@@ -20,7 +20,6 @@ INCLUDE macros.inc
                 DB '    [4] Exit', ASCII_CR, ASCII_LF, ASCII_CR, ASCII_LF, 0
     msgChoice   DB '  Select an option (1-4): ', 0
     msgInvalid  DB ASCII_CR, ASCII_LF, '  Invalid option. Press 1, 2, 3 or 4.', ASCII_CR, ASCII_LF, 0
-    msgPending  DB ASCII_CR, ASCII_LF, '  This feature is not available yet.', ASCII_CR, ASCII_LF, 0
     msgGoodbye  DB ASCII_CR, ASCII_LF, '  Vault closed. Goodbye.', ASCII_CR, ASCII_LF, 0
 
     msgCurrent  DB ASCII_CR, ASCII_LF, '  Enter password: ', 0
@@ -56,6 +55,11 @@ INCLUDE macros.inc
     msgDenied   DB '  Error: access denied.', ASCII_CR, ASCII_LF, 0
     msgFileErr  DB '  Error: file operation failed.', ASCII_CR, ASCII_LF, 0
     msgLocked   DB '  File locked. Encrypted copy: ', 0
+    msgNotLck   DB '  Error: choose a .LCK file to unlock.', ASCII_CR, ASCII_LF, 0
+    msgBadFile  DB '  Error: not a valid Eclipse Vault file.', ASCII_CR, ASCII_LF, 0
+    msgUnlocked DB '  File unlocked. Restored: ', 0
+    lockMagic   DB 'EVLT'
+    MAGIC_SIZE  EQU $ - lockMagic
 
     badChars    DB '\/:*?"<>|+=;,[] '
     BAD_CHARS_LEN EQU $ - badChars
@@ -99,7 +103,7 @@ MenuLoop:
     cmp  al, '2'
     je   ChoiceLock
     cmp  al, '3'
-    je   ChoicePending
+    je   ChoiceUnlock
     cmp  al, '4'
     je   ExitProgram
 
@@ -114,8 +118,8 @@ ChoiceLock:
     call LockFile
     jmp  MenuLoop
 
-ChoicePending:
-    PRINT_COLOR msgPending, COLOR_PROMPT
+ChoiceUnlock:
+    call UnlockFile
     jmp  MenuLoop
 
 ExitProgram:
@@ -419,6 +423,139 @@ LockExit:
 LockFile ENDP
 
 ; -----------------------------------------------------------------------------
+; UnlockFile - Restore the original file from a .LCK file
+; Note : Uses the password the file was locked with, so files stay recoverable
+;        after the vault password changes. Existing files are never overwritten.
+; -----------------------------------------------------------------------------
+UnlockFile PROC
+    call OpenLockedFile
+    jc   UnlockExit
+    call ReadLockHeader
+    jc   UnlockCloseSource
+
+    mov  ax, hdrHash
+    call VerifyPassword
+
+    mov  dx, OFFSET fileName
+    call EnsureMissing
+    jc   UnlockCloseSource
+
+    mov  dx, OFFSET fileName
+    mov  cx, 0
+    DOS_CALL DOS_CREATE_FILE
+    jc   UnlockCreateFailed
+    mov  outHandle, ax
+
+    call InitKeystream
+    call CryptStream
+    jc   UnlockWriteFailed
+    call CloseStreams
+    jc   UnlockCloseFailed
+
+    PRINT_COLOR msgUnlocked, COLOR_SUCCESS
+    PRINT_COLOR fileName, COLOR_SUCCESS
+    PRINT_COLOR msgNewLine, COLOR_SUCCESS
+    jmp  UnlockExit
+
+UnlockCreateFailed:
+    call ShowDosError
+
+UnlockCloseSource:
+    mov  bx, inHandle
+    DOS_CALL DOS_CLOSE_FILE
+    jmp  UnlockExit
+
+UnlockWriteFailed:
+    call CloseStreams
+
+UnlockCloseFailed:
+    mov  dx, OFFSET fileName
+    DOS_CALL DOS_DELETE_FILE
+    PRINT_COLOR msgFileErr, COLOR_ERROR
+
+UnlockExit:
+    call WipePasswords
+    ret
+UnlockFile ENDP
+
+; -----------------------------------------------------------------------------
+; OpenLockedFile - Ask for a .LCK file name and open it
+; Output: CF set on error (message already shown)
+; -----------------------------------------------------------------------------
+OpenLockedFile PROC
+    PRINT_COLOR msgFileAsk, COLOR_PROMPT
+    call ReadFileName
+    jnc  OpenLockedCheckExt
+    PRINT_COLOR msgBadName, COLOR_ERROR
+    stc
+    ret
+
+OpenLockedCheckExt:
+    call HasLockExtension
+    jc   OpenLockedSource
+    PRINT_COLOR msgNotLck, COLOR_ERROR
+    stc
+    ret
+
+OpenLockedSource:
+    mov  si, OFFSET fileName
+    mov  di, OFFSET lockName
+    mov  cx, NAME_SIZE
+    rep  movsb
+
+    mov  dx, OFFSET lockName
+    mov  al, 0
+    DOS_CALL DOS_OPEN_FILE
+    jnc  OpenLockedDone
+    call ShowDosError
+    stc
+    ret
+
+OpenLockedDone:
+    mov  inHandle, ax
+    clc
+    ret
+OpenLockedFile ENDP
+
+; -----------------------------------------------------------------------------
+; ReadLockHeader - Read and validate the header, then load the original name
+; Output: CF set if the header is invalid (message already shown)
+; -----------------------------------------------------------------------------
+ReadLockHeader PROC
+    mov  bx, inHandle
+    mov  dx, OFFSET lockHeader
+    mov  cx, HEADER_SIZE
+    DOS_CALL DOS_READ_FILE
+    jc   HeaderInvalid
+    cmp  ax, HEADER_SIZE
+    jne  HeaderInvalid
+
+    mov  si, OFFSET hdrMagic
+    mov  di, OFFSET lockMagic
+    mov  cx, MAGIC_SIZE
+    repe cmpsb
+    jne  HeaderInvalid
+    cmp  hdrName+NAME_SIZE-1, 0     ; The stored name must be terminated
+    jne  HeaderInvalid
+
+    mov  si, OFFSET hdrName
+    mov  di, OFFSET fileName
+    mov  cx, NAME_SIZE
+    rep  movsb
+    call ValidateFileName           ; Blocks path tricks in a tampered header
+    jc   HeaderInvalid
+    call HasLockExtension
+    jc   HeaderInvalid
+    clc
+    ret
+
+HeaderInvalid:
+    PRINT_COLOR msgBadFile, COLOR_ERROR
+    stc
+    ret
+ReadLockHeader ENDP
+
+; -----------------------------------------------------------------------------
 ; PrepareLock - Collect and validate the file name, then verify the password
 ; Output: CF set if the operation should stop
 ; -----------------------------------------------------------------------------
@@ -522,6 +659,11 @@ EnsureMissing ENDP
 ; Output: CF set on error
 ; -----------------------------------------------------------------------------
 WriteLockedData PROC
+    mov  si, OFFSET lockMagic       ; An earlier unlock may have changed the header
+    mov  di, OFFSET hdrMagic
+    mov  cx, MAGIC_SIZE
+    rep  movsb
+
     mov  si, OFFSET fileName
     mov  di, OFFSET hdrName
     mov  cx, NAME_SIZE
@@ -747,6 +889,10 @@ ValidateNext:
     je   ValidateEnd
     cmp  al, '.'
     je   ValidateDot
+    cmp  al, ASCII_SPACE            ; Names from file headers may hold any byte
+    jbe  ValidateFail
+    cmp  al, ASCII_TILDE
+    ja   ValidateFail
 
     mov  di, OFFSET badChars
     mov  cx, BAD_CHARS_LEN
