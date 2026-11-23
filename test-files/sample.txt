@@ -1,0 +1,15 @@
+ECLIPSE VAULT - SAMPLE DOCUMENT
+===============================
+
+Project  : Orbital Survey Log (demo data)
+Station  : Meridian Outpost 7
+Operator : A. Rivera
+Date     : 14 March 2026
+
+Entry 01 - Solar panel array aligned at 42.5 degrees.
+Entry 02 - Telemetry link stable at 9600 baud.
+Entry 03 - Partial eclipse recorded at 06:18 UTC.
+Entry 04 - Battery reserve holding at 87 percent.
+Entry 05 - Next maintenance window: 21 March 2026.
+
+This file contains fictional data for testing the lock and unlock features.
