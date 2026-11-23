@@ -67,14 +67,15 @@ flowchart TD
 
 ## Screenshots
 
-Add your images at these paths:
+Captured from the program running in DOSBox.
 
-| Screen | Path |
+| Main menu | Masked password |
 | --- | --- |
-| Main menu | `screenshots/menu.png` |
-| Masked password | `screenshots/password.png` |
-| Locked file | `screenshots/lock.png` |
-| Unlocked file | `screenshots/unlock.png` |
+| ![Main menu](screenshots/menu.png) | ![Masked password entry](screenshots/password.png) |
+
+| Lock a file | Unlock a file |
+| --- | --- |
+| ![File locked successfully](screenshots/lock.png) | ![File unlocked successfully](screenshots/unlock.png) |
 
 ## Folder Structure
 
